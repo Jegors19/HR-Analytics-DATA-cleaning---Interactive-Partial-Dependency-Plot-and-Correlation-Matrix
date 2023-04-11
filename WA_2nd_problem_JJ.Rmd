@@ -1,0 +1,170 @@
+---
+title: "WA_2nd_problem_JJ"
+output: ''
+date: "2023-04-09"
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(MASS)
+library(tidyverse)
+library(caret)
+library(car)
+```
+
+
+
+```{r}
+file_path <- "cleaned_data.xlsx"
+data <- read_excel(file_path)
+data <- data[,2:48]
+# Inspect the data (optional)
+data_Job_level_only <- subset(data, select = -MonthlyIncome)
+data_Monthly_income_only <- subset(data, select = -JobLevel)
+
+data_Monthly_income_only <- na.omit(data_Monthly_income_only)
+summary(data)
+
+```
+
+
+
+Simple LM Full model
+
+```{r}
+
+#data <- subset(data, select = -MonthlyIncome)
+
+
+options(scipen = 9)
+full_model <- lm(Attrition_Yes ~ ., data = data_Job_level_only)
+
+summary(full_model)
+
+
+```
+
+
+
+```{r}
+intercept_only <- lm(Attrition_Yes ~ 1, data = data_Job_level_only)
+
+# Perform the backwards stepwise selection
+stepwise_model_forward <- stepAIC(intercept_only,
+                                  direction = "forward",
+                                  trace = FALSE,
+                                  scope=formula(full_model))
+
+# Inspect the selected model
+summary(stepwise_model_forward)
+
+
+```
+
+
+
+```{r}
+shorter_forward <- lm(Attrition_Yes ~ OverTime_Yes + JobLevel + MaritalStatus_Single + 
+    EnvironmentSatisfaction + JobInvolvement +JobSatisfaction, data = data)
+
+
+summary(shorter_forward)
+
+
+```
+
+```{r}
+cor_matrix <- cor(data_Monthly_income_only)
+cor_with_dependent_var <- cor_matrix[, "Attrition_Yes"]
+sorted_correlations <- sort(abs(cor_with_dependent_var), decreasing = TRUE)
+top_6_variables <- names(sorted_correlations)[2:7]
+top_6_variables
+```
+```{r}
+sorted_correlations
+```
+
+
+```{r}
+
+names(data)[names(data) == "JobRole_Sales Representative"] <- "JobRole_Sales_Representative"
+
+control <- trainControl(method = "cv", number = 10)
+set.seed(42)
+
+
+model_joblevel <- train(Attrition_Yes ~ OverTime_Yes + TotalWorkingYears + MaritalStatus_Single + 
+    EnvironmentSatisfaction + JobSatisfaction + JobInvolvement
+
+              , data = data.frame(Attrition_Yes = as.factor(data_Job_level_only$Attrition_Yes), data_Job_level_only[, !names(data_Job_level_only) %in% "Attrition_Yes"]),
+               method = "glm", family = "binomial", trControl = control)
+print(model_joblevel)
+
+
+model_corr <- train(Attrition_Yes ~ OverTime_Yes + JobLevel + MaritalStatus_Single + TotalWorkingYears + JobRole_Sales_Representative + YearsInCurrentRole
+             , data = data.frame(Attrition_Yes = as.factor(data$Attrition_Yes), data[, !names(data) %in% "Attrition_Yes"]),
+               method = "glm", family = "binomial", trControl = control)
+print(model_corr)
+
+
+model_only_income <- train(Attrition_Yes ~ OverTime_Yes + TotalWorkingYears + MaritalStatus_Single + 
+    EnvironmentSatisfaction + JobSatisfaction + JobInvolvement
+
+             , data = data.frame(Attrition_Yes = as.factor(data_Monthly_income_only$Attrition_Yes), data_Monthly_income_only[, !names(data_Monthly_income_only) %in% "Attrition_Yes"]),
+               method = "glm", family = "binomial", trControl = control)
+print(model_only_income)
+
+
+
+#data_Job_level_only
+#data_Monthly_income_only
+
+```
+
+
+
+
+```{r}
+
+model_forward <- train(Attrition_Yes ~ JobLevel, 
+                        data = data.frame(Attrition_Yes = as.factor(data_Job_level_only$Attrition_Yes), data_Job_level_only[, !names(data_Job_level_only) %in% "Attrition_Yes"]),
+                        method = "glm", 
+                        family = "binomial", 
+                        trControl = control)
+print(model_forward)
+
+
+
+model <- train(Attrition_Yes ~ .
+               , data = data.frame(Attrition_Yes = as.factor(data$Attrition_Yes), data[, !names(data) %in% "Attrition_Yes"]),
+               method = "glm", family = "binomial", trControl = control)
+print(model)
+```
+
+
+
+
+
+
+
+```{r}
+logit_1 <- glm(Attrition_Yes~., family = binomial,data = data_Job_level_only)
+logit_2 <- glm(Attrition_Yes~1, family = binomial,data = data_Job_level_only)
+
+MASS::stepAIC(logit_2, direction = "forward", scope = list(lower = logit_2,
+                                                              upper = logit_1))
+
+
+```
+
+
+```{r}
+logit_1 <- glm(Attrition_Yes~., family = binomial,data = data_Monthly_income_only)
+logit_2 <- glm(Attrition_Yes~1, family = binomial,data = data_Monthly_income_only)
+
+MASS::stepAIC(logit_2, direction = "forward", scope = list(lower = logit_2,
+                                                              upper = logit_1))
+
+
+```
+
